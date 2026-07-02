@@ -1,6 +1,6 @@
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
-from conan.tools.build import check_min_cppstd
+from conan.tools.build import check_min_cppstd, cross_building
 from conan.tools.cmake import CMakeToolchain, CMake, CMakeDeps, cmake_layout
 from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rm, rmdir
 from conan.tools.scm import Version
@@ -56,7 +56,7 @@ class CycloneDDSConan(ConanFile):
     def _has_idlc(self, info=False):
         # don't build idlc when it makes little sense or not supported
         host_os = self.info.settings.os if info else self.settings.os
-        return host_os not in ["Android", "iOS", "watchOS", "tvOS", "Neutrino"]
+        return host_os not in ["Android", "iOS", "watchOS", "tvOS", "Neutrino"] and not cross_building(self)
 
     def export_sources(self):
         copy(self, os.path.join("cmake", "CycloneDDS_idlc.cmake"), self.recipe_folder, self.export_sources_folder)
@@ -131,10 +131,15 @@ class CycloneDDSConan(ConanFile):
         copy(self, "LICENSE", self.source_folder, os.path.join(self.package_folder, "licenses"))
         rmdir(self, os.path.join(self.package_folder, "share"))
         rmdir(self, os.path.join(self.package_folder, "lib", "pkgconfig"))
-        rm(self, "*.cmake", os.path.join(self.package_folder, "lib", "cmake", "CycloneDDS"))
+        rmdir(self, os.path.join(self.package_folder, "lib", "cmake", "CycloneDDS"))
         copy(self, "CycloneDDS_idlc.cmake",
                    src=os.path.join(self.source_folder, os.pardir, "cmake"),
                    dst=os.path.join(self.package_folder, "lib", "cmake", "CycloneDDS"))
+        # Always copy Generate.cmake to the package folder, even when CMake would not install it due to _has_idlc being False.
+        copy(self, "Generate.cmake", 
+            src=os.path.join(self.source_folder, "cmake/Modules"), 
+            dst=os.path.join(self.package_folder, "lib", "cmake", "CycloneDDS", "idlc"),
+        )
         if self.settings.os == "Windows":
             for p in ("*.pdb", "concrt*.dll", "msvcp*.dll", "vcruntime*.dll"):
                 rm(self, p, os.path.join(self.package_folder, "bin"))
